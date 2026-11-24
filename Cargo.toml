@@ -38,9 +38,13 @@ path = "examples/benchmark_gpu.rs"
 
 [dependencies]
 composable = "1.0.0"
-orp = "1.0.0"
+orp = { version = "1.0.0", default-features = false }
 regex = "1.11.1"
-ort = { version="=2.0.0-rc.9" }
+# `default-features = false`: ort's defaults include `download-binaries`, which
+# fetches ONNX Runtime from parcel.pyke.io at build time; Cargo features are
+# additive, so if any crate in the graph keeps them, every build downloads.
+# The download is now this crate's `download-binaries` feature instead.
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["ndarray", "half"] }
 ort-sys = { version = "=2.0.0-rc.9", default-features = false } # see https://github.com/pykeio/ort/issues/399
 tokenizers = { version="0.21.0", features=["http"] }
 ndarray = "0.16.0"
@@ -50,7 +54,12 @@ memory-stats = { version="1.2.0", optional=true }
 humansize = { version="2.1", optional=true }
 
 [features]
-default = []
+# On by default, so gline-rs builds as before. A downstream crate that wants
+# a build with no network access sets `default-features = false` here and
+# patches `orp` to a release without the download default (see
+# [patch.crates-io] below).
+default = ["download-binaries"]
+download-binaries = ["ort/download-binaries", "ort/copy-dylibs"]
 memprof = ["cap", "memory-stats", "humansize"]
 load-dynamic = ["ort/load-dynamic"]
 cuda = ["ort/cuda"]
@@ -73,3 +82,9 @@ rknpu = ["ort/rknpu"]
 
 #[lints.clippy]
 #unwrap_used = "warn"
+
+# orp 1.0.0 on crates.io turns on ort's download itself; the fork makes it a
+# feature. [patch] applies only when this crate is the root of the build, so
+# downstream crates add the same patch.
+[patch.crates-io]
+orp = { git = "https://github.com/dhaneshkk/orp", branch = "main" }
